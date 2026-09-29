@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from .config import AccountConfig, AppConfig
+from .providers import supports_protocol
 from .storage import AccountState, StateStore
 
 
@@ -28,7 +29,7 @@ class AccountRouter:
             return False
         return True
 
-    def select(self) -> SelectedAccount:
+    def select(self, protocol: str | None = None) -> SelectedAccount:
         accounts = self.config.accounts
         if not accounts:
             raise RuntimeError("No accounts configured")
@@ -39,7 +40,7 @@ class AccountRouter:
         for idx in order:
             account = accounts[idx]
             state = self.store.get_state(account.id)
-            if self._eligible(account, state):
+            if self._eligible(account, state) and (protocol is None or supports_protocol(account, protocol)):
                 if self.config.rotation.strategy == "round_robin":
                     # Round-robin advances after every successful selection.
                     self.store.advance_cursor((idx + 1) % len(accounts))
