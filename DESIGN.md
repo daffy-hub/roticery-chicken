@@ -1,8 +1,8 @@
-# Roticery Chicken — Design
+# Rotisserie Chicken — Design
 
 ## Core contract
 
-Roticery Chicken presents one stable OpenAI-compatible API to the client. Upstream credentials are implementation details managed by the gateway.
+Rotisserie Chicken presents one stable OpenAI-compatible API to the client. Upstream credentials are implementation details managed by the gateway.
 
 ## Components
 
@@ -25,7 +25,7 @@ Each account specifies:
 - a cooldown period
 - an enabled flag
 
-This makes OpenRouter one configuration, not a hard-coded dependency.
+This makes providers configuration-driven rather than hard-coded dependencies. The provider registry selects the default protocol, while an account can explicitly select `openai`, `anthropic`, or `both`.
 
 ### Router
 Two policies exist:
