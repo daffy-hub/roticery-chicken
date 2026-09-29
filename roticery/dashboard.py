@@ -51,7 +51,7 @@ async function refresh(){
   document.getElementById("active").textContent=active?active.id:"None";document.getElementById("usage").textContent=active?fmt(active.tokens_used):"—";
   document.getElementById("rows").innerHTML=a.map(function(x){
    var cool=x.disabled_until&&x.disabled_until>Date.now()/1000,ready=x.enabled&&!cool&&x.remaining_tokens>0,c=accounts.find(function(y){return y.id===x.id});
-   return "<tr><td>"+esc(x.id)+"</td><td>"+esc(x.provider)+"</td><td>"+(ready?"● Ready":cool?"● Cooldown":x.enabled?"● Threshold reached":"● Disabled")+"</td><td>"+fmt(x.tokens_used)+" / "+fmt(x.token_threshold)+"</td><td>"+(c&&c.has_api_key?"Configured":"Missing")+"</td><td><button onclick=\"testAccount('"+esc(x.id)+"')\\">Test</button><button onclick=\"editAccount('"+esc(x.id)+"')\\">Edit</button><button onclick=\"deleteAccount('"+esc(x.id)+"')\\">Delete</button></td></tr>";
+   return "<tr><td>"+esc(x.id)+"</td><td>"+esc(x.provider)+"</td><td>"+(ready?"● Ready":cool?"● Cooldown":x.enabled?"● Threshold reached":"● Disabled")+"</td><td>"+fmt(x.tokens_used)+" / "+fmt(x.token_threshold)+"</td><td>"+(c&&c.has_api_key?"Configured":"Missing")+"</td><td><button onclick=\"testAccount('"+esc(x.id)+"')\">Test</button><button onclick=\"editAccount('"+esc(x.id)+"')\">Edit</button><button onclick=\"deleteAccount('"+esc(x.id)+"')\">Delete</button></td></tr>";
   }).join("");
  }catch(e){document.getElementById("health").textContent="gateway unavailable"}
 }
