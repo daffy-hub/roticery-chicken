@@ -39,6 +39,8 @@ def upsert_account(config: AppConfig, account: AccountConfig) -> None:
 
 
 def remove_account(config: AppConfig, account_id: str) -> None:
+    if not any(account.id == account_id for account in config.accounts):
+        raise KeyError(account_id)
     remaining = [account for account in config.accounts if account.id != account_id]
     if not remaining:
         raise ValueError("At least one account must remain configured")
