@@ -1,0 +1,33 @@
+server:
+  host: 127.0.0.1
+  port: 8080
+  client_api_key_env: ROTI_API_KEY
+
+database: data/roticery.db
+
+rotation:
+  strategy: sequential
+  default_token_threshold: 50000
+  retry_statuses: [401, 403, 408, 409, 429, 500, 502, 503, 504]
+  default_cooldown_seconds: 60
+
+accounts:
+  - id: openrouter-01
+    provider: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: ROTI_OR_01
+    token_threshold: 50000
+    cooldown_seconds: 60
+    enabled: true
+
+  - id: openrouter-02
+    provider: openrouter
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: ROTI_OR_02
+    token_threshold: 50000
+    cooldown_seconds: 60
+    enabled: true
+
+models:
+  - id: openai/gpt-4o-mini
+    owned_by: openrouter
