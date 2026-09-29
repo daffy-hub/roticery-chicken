@@ -5,9 +5,11 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from pydantic import BaseModel, Field
 
-from .config import AppConfig, load_config
+from .config import AccountConfig, AppConfig, load_config
+from .management import find_account, remove_account, save_config, upsert_account
 from .router import AccountRouter
 from .storage import StateStore
 from .upstream import UpstreamError, request_json, stream_response
@@ -20,7 +22,18 @@ SUPPORTED_PATHS = {
 }
 
 
-def create_app(config: AppConfig) -> FastAPI:
+class AccountRequest(BaseModel):
+    id: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    base_url: str = Field(min_length=1)
+    api_key_env: str = Field(min_length=1)
+    token_threshold: int | None = Field(default=None, ge=1)
+    cooldown_seconds: int | None = Field(default=None, ge=0)
+    enabled: bool = True
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
+def create_app(config: AppConfig, config_path: str | Path | None = None) -> FastAPI:
     store = StateStore(config.database)
     router = AccountRouter(config, store)
     client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=20.0))
@@ -30,6 +43,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app.state.store = store
     app.state.router = router
     app.state.http_client = client
+    app.state.config_path = Path(config_path) if config_path else None
 
     async def authorize(incoming_key: str | None) -> None:
         env_name = config.server.client_api_key_env
@@ -47,6 +61,98 @@ def create_app(config: AppConfig) -> FastAPI:
     async def dashboard() -> HTMLResponse:
         from .dashboard import dashboard_response
         return dashboard_response()
+
+    def require_config_path() -> Path:
+        path = app.state.config_path
+        if path is None:
+            raise HTTPException(status_code=503, detail="Dashboard configuration management is unavailable for in-memory app instances")
+        return path
+
+    @app.get("/dashboard/accounts")
+    async def dashboard_accounts() -> dict:
+        return {
+            "accounts": [
+                {
+                    "id": account.id,
+                    "provider": account.provider,
+                    "base_url": account.base_url,
+                    "api_key_env": account.api_key_env,
+                    "token_threshold": config.account_threshold(account),
+                    "cooldown_seconds": config.account_cooldown(account),
+                    "enabled": account.enabled,
+                    "has_api_key": bool(__import__("os").getenv(account.api_key_env)),
+                }
+                for account in config.accounts
+            ]
+        }
+
+    @app.post("/dashboard/accounts")
+    async def dashboard_add_account(payload: AccountRequest) -> dict:
+        require_config_path()
+        if any(account.id == payload.id for account in config.accounts):
+            raise HTTPException(status_code=409, detail="Account ID already exists")
+        account = AccountConfig(**payload.model_dump())
+        upsert_account(config, account)
+        store.ensure_accounts([account.id])
+        save_config(app.state.config_path, config)
+        return {"status": "created", "account": {"id": account.id, "provider": account.provider}}
+
+    @app.put("/dashboard/accounts/{account_id}")
+    async def dashboard_update_account(account_id: str, payload: AccountRequest) -> dict:
+        require_config_path()
+        if payload.id != account_id:
+            raise HTTPException(status_code=400, detail="Account ID in path and body must match")
+        try:
+            find_account(config, account_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Account not found") from exc
+        account = AccountConfig(**payload.model_dump())
+        upsert_account(config, account)
+        store.ensure_accounts([account.id])
+        save_config(app.state.config_path, config)
+        return {"status": "updated", "account": {"id": account.id, "provider": account.provider}}
+
+    @app.delete("/dashboard/accounts/{account_id}")
+    async def dashboard_delete_account(account_id: str) -> dict:
+        require_config_path()
+        try:
+            remove_account(config, account_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Account not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        save_config(app.state.config_path, config)
+        return {"status": "deleted", "id": account_id}
+
+    @app.post("/dashboard/accounts/{account_id}/test")
+    async def dashboard_test_account(account_id: str) -> dict:
+        try:
+            account = find_account(config, account_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Account not found") from exc
+        try:
+            api_key = config.api_key_for(account)
+        except RuntimeError as exc:
+            return {"ok": False, "status": "missing_key", "message": str(exc)}
+
+        import time
+        started = time.perf_counter()
+        url = account.base_url.rstrip("/") + "/models"
+        headers = {"Authorization": f"Bearer {api_key}", **account.headers}
+        try:
+            response = await client.get(url, headers=headers)
+        except httpx.HTTPError as exc:
+            return {"ok": False, "status": "network_error", "message": str(exc)}
+        latency_ms = round((time.perf_counter() - started) * 1000)
+        if response.is_success:
+            return {"ok": True, "status": "online", "http_status": response.status_code, "latency_ms": latency_ms}
+        return {
+            "ok": False,
+            "status": "auth_error" if response.status_code in (401, 403) else "upstream_error",
+            "http_status": response.status_code,
+            "latency_ms": latency_ms,
+            "message": response.text[:200],
+        }
 
     @app.get("/dashboard/data")
     async def dashboard_data() -> dict:
@@ -190,4 +296,4 @@ def create_app(config: AppConfig) -> FastAPI:
 
 
 def create_app_from_file(path: str | Path) -> FastAPI:
-    return create_app(load_config(path))
+    return create_app(load_config(path), config_path=path)
