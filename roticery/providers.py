@@ -34,7 +34,7 @@ PROVIDERS: dict[str, ProviderSpec] = {
 
 def protocol_for(account: AccountConfig) -> Protocol:
     configured = getattr(account, "protocol", None)
-    if configured:
+    if configured and configured != "auto":
         return configured
     spec = PROVIDERS.get(account.provider.lower())
     return spec.default_protocol if spec else "openai"
