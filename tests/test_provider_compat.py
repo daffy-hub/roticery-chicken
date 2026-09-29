@@ -92,3 +92,35 @@ def test_openrouter_can_serve_anthropic_protocol(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert route.calls[0].request.headers["authorization"] == "Bearer secret"
+
+
+def test_messages_count_tokens_uses_anthropic_protocol(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_KEY", "secret")
+    config = AppConfig(
+        database=str(tmp_path / "state.db"),
+        accounts=[
+            AccountConfig(
+                id="anthropic",
+                provider="anthropic",
+                base_url="https://api.anthropic.com/v1",
+                api_key_env="ANTHROPIC_KEY",
+                protocol="anthropic",
+            )
+        ],
+    )
+    route = respx.post("https://api.anthropic.com/v1/messages/count_tokens").mock(
+        return_value=httpx.Response(200, json={"input_tokens": 7})
+    )
+
+    with TestClient(create_app(config)) as client:
+        response = client.post(
+            "/v1/messages/count_tokens",
+            json={
+                "model": "claude-test",
+                "messages": [{"role": "user", "content": "hello"}],
+            },
+        )
+
+    assert response.status_code == 200
+    assert route.calls[0].request.headers["x-api-key"] == "secret"
+    assert route.calls[0].request.headers["anthropic-version"] == "2023-06-01"
