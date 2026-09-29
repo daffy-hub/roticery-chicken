@@ -7,6 +7,7 @@ import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
+from typing import Literal
 
 from .config import AccountConfig, AppConfig, load_config
 from .management import find_account, remove_account, save_config, upsert_account
@@ -38,7 +39,7 @@ class AccountRequest(BaseModel):
     cooldown_seconds: int | None = Field(default=None, ge=0)
     enabled: bool = True
     headers: dict[str, str] = Field(default_factory=dict)
-    protocol: str = Field(default="auto")
+    protocol: Literal["auto", "openai", "anthropic", "both"] = "auto"
 
 
 def create_app(config: AppConfig, config_path: str | Path | None = None) -> FastAPI:
@@ -46,7 +47,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
     router = AccountRouter(config, store)
     client = httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=20.0))
 
-    app = FastAPI(title="Roticery Chicken", version="0.1.0")
+    app = FastAPI(title="Rotisserie Chicken", version="0.1.0")
     app.state.config = config
     app.state.store = store
     app.state.router = router
