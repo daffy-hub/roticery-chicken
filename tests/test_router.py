@@ -48,3 +48,21 @@ def test_sequential_stays_on_account_until_threshold(tmp_path):
     assert router.select().config.id == "a"
     store.record_tokens("a", 5)
     assert router.select().config.id == "b"
+
+
+def test_protocol_routing(tmp_path):
+    cfg = AppConfig(
+        database=str(tmp_path / "state.db"),
+        accounts=[
+            AccountConfig(id="openai", provider="openai", base_url="http://openai", api_key_env="A", protocol="openai"),
+            AccountConfig(id="anthropic", provider="anthropic", base_url="http://anthropic", api_key_env="B", protocol="anthropic"),
+            AccountConfig(id="both", provider="openrouter", base_url="http://both", api_key_env="C", protocol="both"),
+        ],
+    )
+    store = StateStore(cfg.database)
+    router = AccountRouter(cfg, store)
+
+    assert router.select("openai").config.id == "openai"
+    assert router.select("anthropic").config.id == "both"
+    store.record_tokens("both", 50_000)
+    assert router.select("anthropic").config.id == "anthropic"
