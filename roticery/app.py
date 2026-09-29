@@ -43,6 +43,28 @@ def create_app(config: AppConfig) -> FastAPI:
     async def shutdown() -> None:
         await client.aclose()
 
+    @app.get("/", response_class=HTMLResponse)
+    async def dashboard() -> HTMLResponse:
+        from .dashboard import dashboard_response
+        return dashboard_response()
+
+    @app.get("/dashboard/data")
+    async def dashboard_data() -> dict:
+        accounts = []
+        for account in config.accounts:
+            state = store.get_state(account.id)
+            threshold = config.account_threshold(account)
+            accounts.append({
+                "id": account.id,
+                "provider": account.provider,
+                "enabled": account.enabled,
+                "tokens_used": state.tokens_used,
+                "token_threshold": threshold,
+                "remaining_tokens": max(0, threshold - state.tokens_used),
+                "disabled_until": state.disabled_until,
+            })
+        return {"strategy": config.rotation.strategy, "accounts": accounts}
+
     @app.get("/healthz")
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}
