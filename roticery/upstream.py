@@ -32,20 +32,30 @@ class UpstreamError(Exception):
         super().__init__(f"Upstream returned HTTP {status_code}")
 
 
-def build_headers(account: AccountConfig, api_key: str, incoming: httpx.Headers) -> dict[str, str]:
+def request_protocol(path: str) -> str:
+    return "anthropic" if path.rstrip("/").endswith("messages") else "openai"
+
+
+def build_headers(
+    account: AccountConfig,
+    api_key: str,
+    incoming: httpx.Headers,
+    protocol: str | None = None,
+) -> dict[str, str]:
     headers = {
         k: v for k, v in incoming.items() if k.lower() not in HOP_BY_HOP
     }
     headers.update(account.headers)
-    provider = account.provider.lower()
-    if provider == "anthropic":
+    protocol = protocol or request_protocol("")
+    if protocol == "anthropic":
         headers.pop("Authorization", None)
-        headers["x-api-key"] = api_key
+        if api_key:
+            headers["x-api-key"] = api_key
         headers.setdefault("anthropic-version", "2023-06-01")
-    elif provider in {"local", "lmstudio", "lm-studio"} and account.headers.get("x-api-key"):
-        headers.pop("Authorization", None)
-    else:
+    elif api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+    else:
+        headers.pop("Authorization", None)
     return headers
 
 
@@ -60,7 +70,7 @@ async def request_json(
     url = f"{account.base_url.rstrip('/')}/{path.lstrip('/')}"
     response = await client.post(
         url,
-        headers=build_headers(account, api_key, incoming_headers),
+        headers=build_headers(account, api_key, incoming_headers, request_protocol(path)),
         json=body,
     )
     if response.status_code >= 400:
@@ -83,7 +93,7 @@ async def request_raw(
     incoming_headers: httpx.Headers,
 ) -> tuple[httpx.Response, int]:
     url = f"{account.base_url.rstrip('/')}/{path.lstrip('/')}"
-    headers = build_headers(account, api_key, incoming_headers)
+    headers = build_headers(account, api_key, incoming_headers, request_protocol(path))
     headers["Content-Type"] = content_type
     response = await client.post(url, headers=headers, content=raw_body)
     if response.status_code >= 400:
