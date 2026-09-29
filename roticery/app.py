@@ -14,7 +14,7 @@ from .management import find_account, remove_account, save_config, upsert_accoun
 from .router import AccountRouter
 from .providers import protocol_for
 from .storage import StateStore
-from .upstream import UpstreamError, request_json, request_raw, stream_response
+from .upstream import UpstreamError, build_headers, request_json, request_raw, request_protocol, stream_response
 
 
 SUPPORTED_PATHS = {
@@ -149,7 +149,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
         import time
         started = time.perf_counter()
         url = account.base_url.rstrip("/") + "/models"
-        headers = {"Authorization": f"Bearer {api_key}", **account.headers}
+        headers = build_headers(account, api_key, httpx.Headers(), protocol_for(account) if protocol_for(account) != "both" else "openai")
         try:
             response = await client.get(url, headers=headers)
         except httpx.HTTPError as exc:
