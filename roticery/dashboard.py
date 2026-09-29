@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 
 DASHBOARD_HTML = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Roticery Chicken</title>
+<title>Rotisserie Chicken</title>
 <style>
 body{margin:0;background:#0b0d0f;color:#eee;font:14px system-ui;padding:28px}main{max-width:1180px;margin:auto}
 .card{background:#111418;border:1px solid #292e34;border-radius:14px;padding:18px;margin:14px 0}
@@ -16,7 +16,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wide{grid-column:1/-1}
 @media(max-width:800px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.grid,form{grid-template-columns:1fr}}
 </style></head>
 <body><main>
-<header><h1>🍗 Roticery Chicken</h1><p class="muted">Token-aware AI gateway · <span id="health">checking…</span></p></header>
+<header><h1>🍗 Rotisserie Chicken</h1><p class="muted">Token-aware AI gateway · <span id="health">checking…</span></p></header>
 <section class="grid">
 <div class="card"><div class="muted">Active account</div><div class="value" id="active">—</div></div>
 <div class="card"><div class="muted">Usage</div><div class="value" id="usage">—</div></div>
@@ -28,8 +28,9 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wide{grid-column:1/-1}
 <p class="muted">API keys are never written to YAML or returned to the browser. Configure each account with an environment variable such as ROTI_OR_01. Tests use that variable directly.</p></section>
 <div id="modal" class="modal"><div class="box"><h2 id="title">Add API</h2><form onsubmit="saveAccount(event)">
 <label>Account ID<input id="id" required></label><label>Provider<input id="provider" value="openrouter" required></label>
+<label>Protocol<select id="protocol"><option value="auto">Auto</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="both">Both</option></select></label>
 <label class="wide">Base URL<input id="base_url" value="https://openrouter.ai/api/v1" required></label>
-<label>API key environment variable<input id="api_key_env" placeholder="ROTI_OR_01" required></label>
+<label>API key environment variable<input id="api_key_env" placeholder="ROTI_OR_01"></label>
 <label>Token threshold<input id="token_threshold" type="number" value="50000" min="1" required></label>
 <label>Cooldown seconds<input id="cooldown_seconds" type="number" value="60" min="0" required></label>
 <label>Enabled<select id="enabled"><option value="true">Yes</option><option value="false">No</option></select></label>
@@ -57,9 +58,9 @@ async function refresh(){
 }
 function openModal(){document.getElementById("modal").classList.add("open")}
 function closeModal(){document.getElementById("modal").classList.remove("open")}
-function newAccount(){editing=null;document.getElementById("title").textContent="Add API";document.getElementById("id").value="";document.getElementById("provider").value="openrouter";document.getElementById("base_url").value="https://openrouter.ai/api/v1";document.getElementById("api_key_env").value="";document.getElementById("token_threshold").value=50000;document.getElementById("cooldown_seconds").value=60;document.getElementById("enabled").value="true";openModal()}
-function editAccount(id){var a=accounts.find(function(x){return x.id===id});if(!a)return;editing=id;document.getElementById("title").textContent="Edit API";["id","provider","base_url","api_key_env","token_threshold","cooldown_seconds"].forEach(function(k){document.getElementById(k).value=a[k]});document.getElementById("enabled").value=String(a.enabled);openModal()}
-async function saveAccount(e){e.preventDefault();var body={id:document.getElementById("id").value,provider:document.getElementById("provider").value,base_url:document.getElementById("base_url").value,api_key_env:document.getElementById("api_key_env").value,token_threshold:Number(document.getElementById("token_threshold").value),cooldown_seconds:Number(document.getElementById("cooldown_seconds").value),enabled:document.getElementById("enabled").value==="true",headers:{}};var url="/dashboard/accounts"+(editing?"/"+encodeURIComponent(editing):"");var r=await fetch(url,{method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});var d=await r.json();if(!r.ok)return alert(d.detail||"Save failed");closeModal();refresh()}
+function newAccount(){editing=null;document.getElementById("title").textContent="Add API";document.getElementById("id").value="";document.getElementById("provider").value="openrouter";document.getElementById("base_url").value="https://openrouter.ai/api/v1";document.getElementById("api_key_env").value="";document.getElementById("protocol").value="auto";document.getElementById("token_threshold").value=50000;document.getElementById("cooldown_seconds").value=60;document.getElementById("enabled").value="true";openModal()}
+function editAccount(id){var a=accounts.find(function(x){return x.id===id});if(!a)return;editing=id;document.getElementById("title").textContent="Edit API";["id","provider","base_url","api_key_env","token_threshold","cooldown_seconds"].forEach(function(k){document.getElementById(k).value=a[k]});document.getElementById("enabled").value=String(a.enabled);document.getElementById("protocol").value=a.protocol||"auto";openModal()}
+async function saveAccount(e){e.preventDefault();var body={id:document.getElementById("id").value,provider:document.getElementById("provider").value,base_url:document.getElementById("base_url").value,api_key_env:document.getElementById("api_key_env").value||null,protocol:document.getElementById("protocol").value,token_threshold:Number(document.getElementById("token_threshold").value),cooldown_seconds:Number(document.getElementById("cooldown_seconds").value),enabled:document.getElementById("enabled").value==="true",headers:{}};var url="/dashboard/accounts"+(editing?"/"+encodeURIComponent(editing):"");var r=await fetch(url,{method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});var d=await r.json();if(!r.ok)return alert(d.detail||"Save failed");closeModal();refresh()}
 async function deleteAccount(id){if(!confirm("Delete "+id+"?"))return;var r=await fetch("/dashboard/accounts/"+encodeURIComponent(id),{method:"DELETE"});var d=await r.json();if(!r.ok)return alert(d.detail||"Delete failed");refresh()}
 async function testAccount(id){var r=await fetch("/dashboard/accounts/"+encodeURIComponent(id)+"/test",{method:"POST"}),d=await r.json();if(d.ok)alert("ONLINE · HTTP "+d.http_status+" · "+d.latency_ms+" ms");else alert((d.status||"error").replaceAll("_"," ") +(d.http_status?" · HTTP "+d.http_status:"")+(d.message?"\n"+d.message:""))}
 refresh();setInterval(refresh,3000);
