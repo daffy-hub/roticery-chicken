@@ -38,11 +38,10 @@ accounts:
   #   protocol: anthropic
   #   enabled: true
 
-  # Local LM Studio. For OpenAI-compatible endpoints use base_url http://localhost:1234/v1.
-  # For Anthropic-compatible endpoints use protocol: both and base_url http://localhost:1234.
+  # Local LM Studio. Use its /v1 compatibility root for both protocols.
   # - id: lmstudio-01
   #   provider: lmstudio
-  #   base_url: http://localhost:1234
+  #   base_url: http://localhost:1234/v1
   #   api_key_env: null
   #   protocol: both
   #   enabled: true
