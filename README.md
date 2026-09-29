@@ -1,15 +1,17 @@
-# Roticery Chicken 🐔
+# Rotisserie Chicken 🐔
 
-Roticery Chicken is a small, provider-agnostic AI API gateway. It exposes one OpenAI-compatible endpoint to an agent while routing requests across a configured pool of upstream credentials.
+Rotisserie Chicken is a small, provider-agnostic AI API gateway. It exposes one OpenAI-compatible endpoint to an agent while routing requests across a configured pool of upstream credentials.
 
 The first milestone is deliberately narrow:
 
-- OpenAI-compatible `/v1/chat/completions`, `/v1/completions`, and `/v1/responses` proxying.
+- OpenAI-compatible `/v1/chat/completions`, `/v1/completions`, `/v1/responses`, `/v1/embeddings`, `/v1/moderations`, `/v1/images/generations`, `/v1/audio/speech`, and `/v1/audio/transcriptions` proxying.
 - Any number of configured upstream accounts/providers.
 - Persistent per-account token accounting in SQLite.
 - Sequential or round-robin account rotation.
 - Per-account token thresholds.
 - Cooldown and retry on configured upstream status codes.
+- Anthropic Messages compatibility at `/v1/messages`.
+- Protocol-aware routing for OpenAI, Anthropic, OpenRouter, and LM Studio-style endpoints.
 - Optional local client authentication.
 - `/status` and `/healthz` endpoints.
 
@@ -19,7 +21,7 @@ The first milestone is deliberately narrow:
 Agent (Hermes, OpenAI SDK, etc.)
             |
             v
-     Roticery Chicken
+     Rotisserie Chicken
             |
       Account Router
        /      |      \
@@ -74,7 +76,7 @@ Set `server.client_api_key_env` to `null` in local-only setups if you do not wan
 ## Roadmap
 
 1. MVP proxy and token-aware rotation.
-2. Better streaming usage capture and provider-specific adapters.
+2. Provider adapters and protocol-aware routing for OpenAI, Anthropic, OpenRouter, LM Studio, Ollama, Groq, Mistral, Together, Fireworks, DeepSeek, and vLLM.
 3. Atomic usage reservation for concurrent requests.
 4. Per-model routing policies.
 5. Admin API/UI for account health and usage.
