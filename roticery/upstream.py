@@ -33,7 +33,7 @@ class UpstreamError(Exception):
 
 
 def request_protocol(path: str) -> str:
-    return "anthropic" if path.rstrip("/").endswith("messages") else "openai"
+    return "anthropic" if path.rstrip("/").startswith("messages") else "openai"
 
 
 def build_headers(
@@ -117,7 +117,7 @@ async def stream_response(
     async with client.stream(
         "POST",
         url,
-        headers=build_headers(account, api_key, incoming_headers),
+        headers=build_headers(account, api_key, incoming_headers, request_protocol(path)),
         json=body,
     ) as response:
         if response.status_code >= 400:
