@@ -22,6 +22,7 @@ SUPPORTED_PATHS = {
     "/v1/completions": "completions",
     "/v1/responses": "responses",
     "/v1/messages": "messages",
+    "/v1/messages/count_tokens": "messages/count_tokens",
     "/v1/embeddings": "embeddings",
     "/v1/moderations": "moderations",
     "/v1/images/generations": "images/generations",
@@ -90,7 +91,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
                     "token_threshold": config.account_threshold(account),
                     "cooldown_seconds": config.account_cooldown(account),
                     "enabled": account.enabled,
-                    "has_api_key": bool(__import__("os").getenv(account.api_key_env)),
+                    "has_api_key": bool(account.api_key_env and __import__("os").getenv(account.api_key_env)),
                 }
                 for account in config.accounts
             ]
@@ -231,7 +232,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
         is_multipart = content_type.lower().startswith("multipart/")
         raw_body = await request.body() if is_multipart else None
         body = {} if is_multipart else await request.json()
-        required_protocol = "anthropic" if path == "/v1/messages" else "openai"
+        required_protocol = "anthropic" if path.startswith("/v1/messages") else "openai"
         selected = router.select(required_protocol)
         account = selected.config
 
