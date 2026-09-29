@@ -23,7 +23,7 @@ form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.wide{grid-column:1/-1}
 <div class="card"><div class="muted">Rotation</div><div class="value" id="strategy">—</div></div>
 <div class="card"><div class="muted">Accounts</div><div class="value" id="accounts">—</div></div>
 </section>
-<section class="card"><h2>Credential pool</h2><table><thead><tr><th>Account</th><th>Provider</th><th>State</th><th>Usage</th><th>Key</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></section>
+<section class="card"><h2>Credential pool</h2><table><thead><tr><th>Account</th><th>Provider</th><th>Protocol</th><th>State</th><th>Usage</th><th>Key</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></section>
 <section class="card"><h2>API management</h2><button class="primary" onclick="newAccount()">＋ Add API</button>
 <p class="muted">API keys are never written to YAML or returned to the browser. Configure each account with an environment variable such as ROTI_OR_01. Tests use that variable directly.</p></section>
 <div id="modal" class="modal"><div class="box"><h2 id="title">Add API</h2><form onsubmit="saveAccount(event)">
@@ -52,7 +52,7 @@ async function refresh(){
   document.getElementById("active").textContent=active?active.id:"None";document.getElementById("usage").textContent=active?fmt(active.tokens_used):"—";
   document.getElementById("rows").innerHTML=a.map(function(x){
    var cool=x.disabled_until&&x.disabled_until>Date.now()/1000,ready=x.enabled&&!cool&&x.remaining_tokens>0,c=accounts.find(function(y){return y.id===x.id});
-   return "<tr><td>"+esc(x.id)+"</td><td>"+esc(x.provider)+"</td><td>"+(ready?"● Ready":cool?"● Cooldown":x.enabled?"● Threshold reached":"● Disabled")+"</td><td>"+fmt(x.tokens_used)+" / "+fmt(x.token_threshold)+"</td><td>"+(c&&c.has_api_key?"Configured":"Missing")+"</td><td><button onclick=\"testAccount('"+esc(x.id)+"')\">Test</button><button onclick=\"editAccount('"+esc(x.id)+"')\">Edit</button><button onclick=\"deleteAccount('"+esc(x.id)+"')\">Delete</button></td></tr>";
+   return "<tr><td>"+esc(x.id)+"</td><td>"+esc(x.provider)+"</td><td>"+esc(c&&c.protocol||"—")+"</td><td>"+(ready?"● Ready":cool?"● Cooldown":x.enabled?"● Threshold reached":"● Disabled")+"</td><td>"+fmt(x.tokens_used)+" / "+fmt(x.token_threshold)+"</td><td>"+(c&&c.has_api_key?"Configured":"Missing")+"</td><td><button onclick=\"testAccount('"+esc(x.id)+"')\">Test</button><button onclick=\"editAccount('"+esc(x.id)+"')\">Edit</button><button onclick=\"deleteAccount('"+esc(x.id)+"')\">Delete</button></td></tr>";
   }).join("");
  }catch(e){document.getElementById("health").textContent="gateway unavailable"}
 }
