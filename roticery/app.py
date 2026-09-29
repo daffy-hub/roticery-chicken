@@ -5,20 +5,25 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from .config import AccountConfig, AppConfig, load_config
 from .management import find_account, remove_account, save_config, upsert_account
 from .router import AccountRouter
 from .storage import StateStore
-from .upstream import UpstreamError, request_json, stream_response
+from .upstream import UpstreamError, request_json, request_raw, stream_response
 
 
 SUPPORTED_PATHS = {
     "/v1/chat/completions": "chat/completions",
     "/v1/completions": "completions",
     "/v1/responses": "responses",
+    "/v1/embeddings": "embeddings",
+    "/v1/moderations": "moderations",
+    "/v1/images/generations": "images/generations",
+    "/v1/audio/speech": "audio/speech",
+    "/v1/audio/transcriptions": "audio/transcriptions",
 }
 
 
@@ -217,7 +222,10 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
             raise HTTPException(status_code=404, detail=f"Unsupported endpoint: {path}")
 
         await authorize(authorization)
-        body = await request.json()
+        content_type = request.headers.get("content-type", "")
+        is_multipart = content_type.lower().startswith("multipart/")
+        raw_body = await request.body() if is_multipart else None
+        body = {} if is_multipart else await request.json()
         selected = router.select()
         account = selected.config
 
@@ -251,28 +259,20 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
             return StreamingResponse(generator(), media_type="text/event-stream")
 
         try:
-            response, tokens = await request_json(
-                client,
-                account,
-                api_key,
-                SUPPORTED_PATHS[path],
-                body,
-                request.headers,
-            )
+            if is_multipart:
+                response, tokens = await request_raw(client, account, api_key, SUPPORTED_PATHS[path], raw_body or b"", content_type, request.headers)
+            else:
+                response, tokens = await request_json(client, account, api_key, SUPPORTED_PATHS[path], body, request.headers)
         except UpstreamError as exc:
             if exc.status_code in config.rotation.retry_statuses:
                 store.disable(account.id, config.account_cooldown(account))
                 try:
                     retry = router.select()
                     retry_key = config.api_key_for(retry.config)
-                    response, tokens = await request_json(
-                        client,
-                        retry.config,
-                        retry_key,
-                        SUPPORTED_PATHS[path],
-                        body,
-                        request.headers,
-                    )
+                    if is_multipart:
+                        response, tokens = await request_raw(client, retry.config, retry_key, SUPPORTED_PATHS[path], raw_body or b"", content_type, request.headers)
+                    else:
+                        response, tokens = await request_json(client, retry.config, retry_key, SUPPORTED_PATHS[path], body, request.headers)
                     account = retry.config
                 except (UpstreamError, RuntimeError):
                     return JSONResponse(
@@ -290,7 +290,9 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
                 )
 
         store.record_tokens(account.id, tokens)
-        return JSONResponse(content=response.json(), status_code=response.status_code)
+        if "application/json" in response.headers.get("content-type", "").lower():
+            return JSONResponse(content=response.json(), status_code=response.status_code)
+        return Response(content=response.content, status_code=response.status_code, media_type=response.headers.get("content-type"))
 
     return app
 
