@@ -37,7 +37,15 @@ def build_headers(account: AccountConfig, api_key: str, incoming: httpx.Headers)
         k: v for k, v in incoming.items() if k.lower() not in HOP_BY_HOP
     }
     headers.update(account.headers)
-    headers["Authorization"] = f"Bearer {api_key}"
+    provider = account.provider.lower()
+    if provider == "anthropic":
+        headers.pop("Authorization", None)
+        headers["x-api-key"] = api_key
+        headers.setdefault("anthropic-version", "2023-06-01")
+    elif provider in {"local", "lmstudio", "lm-studio"} and account.headers.get("x-api-key"):
+        headers.pop("Authorization", None)
+    else:
+        headers["Authorization"] = f"Bearer {api_key}"
     return headers
 
 
