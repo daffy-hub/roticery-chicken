@@ -19,6 +19,7 @@ accounts:
     token_threshold: 50000
     cooldown_seconds: 60
     enabled: true
+    protocol: both
 
   - id: openrouter-02
     provider: openrouter
@@ -27,6 +28,24 @@ accounts:
     token_threshold: 50000
     cooldown_seconds: 60
     enabled: true
+    protocol: both
+
+  # Direct Anthropic Messages API.
+  # - id: anthropic-01
+  #   provider: anthropic
+  #   base_url: https://api.anthropic.com
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   protocol: anthropic
+  #   enabled: true
+
+  # Local LM Studio. For OpenAI-compatible endpoints use base_url http://localhost:1234/v1.
+  # For Anthropic-compatible endpoints use protocol: both and base_url http://localhost:1234.
+  # - id: lmstudio-01
+  #   provider: lmstudio
+  #   base_url: http://localhost:1234
+  #   api_key_env: null
+  #   protocol: both
+  #   enabled: true
 
 # Optional static model list exposed by GET /v1/models.
 models:
