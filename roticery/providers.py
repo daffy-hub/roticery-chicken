@@ -29,6 +29,13 @@ PROVIDERS: dict[str, ProviderSpec] = {
     "deepseek": ProviderSpec("deepseek", "openai", "DeepSeek"),
     "vllm": ProviderSpec("vllm", "openai", "vLLM"),
     "local": ProviderSpec("local", "openai", "Local OpenAI-compatible"),
+    "google": ProviderSpec("google", "openai", "Google Gemini"),
+    "gemini": ProviderSpec("google", "openai", "Google Gemini"),
+    "xai": ProviderSpec("xai", "openai", "xAI"),
+    "cerebras": ProviderSpec("cerebras", "openai", "Cerebras"),
+    "perplexity": ProviderSpec("perplexity", "openai", "Perplexity"),
+    "cohere": ProviderSpec("cohere", "openai", "Cohere"),
+    "azure-openai": ProviderSpec("azure-openai", "openai", "Azure OpenAI"),
 }
 
 
