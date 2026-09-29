@@ -26,7 +26,7 @@ def test_dashboard_routes(tmp_path):
     with TestClient(create_app(config, config_path=config_path)) as client:
         page = client.get("/")
         assert page.status_code == 200
-        assert "Roticery Chicken" in page.text
+        assert "Rotisserie Chicken" in page.text
 
         data = client.get("/dashboard/data")
         assert data.status_code == 200
@@ -58,6 +58,7 @@ def test_dashboard_account_management(tmp_path):
             "cooldown_seconds": 30,
             "enabled": True,
             "headers": {},
+            "protocol": "both",
         }
         created = client.post("/dashboard/accounts", json=payload)
         assert created.status_code == 200
