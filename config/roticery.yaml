@@ -1,6 +1,6 @@
 server:
   host: 127.0.0.1
-  port: 8080
+  port: 2500
   client_api_key_env: ROTI_API_KEY
 
 database: data/roticery.db
