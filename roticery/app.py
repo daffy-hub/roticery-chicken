@@ -19,6 +19,7 @@ SUPPORTED_PATHS = {
     "/v1/chat/completions": "chat/completions",
     "/v1/completions": "completions",
     "/v1/responses": "responses",
+    "/v1/messages": "messages",
     "/v1/embeddings": "embeddings",
     "/v1/moderations": "moderations",
     "/v1/images/generations": "images/generations",
