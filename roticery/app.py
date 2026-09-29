@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from .config import AccountConfig, AppConfig, load_config
 from .management import find_account, remove_account, save_config, upsert_account
 from .router import AccountRouter
+from .providers import protocol_for
 from .storage import StateStore
 from .upstream import UpstreamError, request_json, request_raw, stream_response
 
@@ -32,11 +33,12 @@ class AccountRequest(BaseModel):
     id: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
-    api_key_env: str = Field(min_length=1)
+    api_key_env: str | None = None
     token_threshold: int | None = Field(default=None, ge=1)
     cooldown_seconds: int | None = Field(default=None, ge=0)
     enabled: bool = True
     headers: dict[str, str] = Field(default_factory=dict)
+    protocol: str = Field(default="auto")
 
 
 def create_app(config: AppConfig, config_path: str | Path | None = None) -> FastAPI:
@@ -83,6 +85,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
                     "provider": account.provider,
                     "base_url": account.base_url,
                     "api_key_env": account.api_key_env,
+                    "protocol": protocol_for(account),
                     "token_threshold": config.account_threshold(account),
                     "cooldown_seconds": config.account_cooldown(account),
                     "enabled": account.enabled,
@@ -227,7 +230,8 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
         is_multipart = content_type.lower().startswith("multipart/")
         raw_body = await request.body() if is_multipart else None
         body = {} if is_multipart else await request.json()
-        selected = router.select()
+        required_protocol = "anthropic" if path == "/v1/messages" else "openai"
+        selected = router.select(required_protocol)
         account = selected.config
 
         try:
@@ -268,7 +272,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
             if exc.status_code in config.rotation.retry_statuses:
                 store.disable(account.id, config.account_cooldown(account))
                 try:
-                    retry = router.select()
+                    retry = router.select(required_protocol)
                     retry_key = config.api_key_for(retry.config)
                     if is_multipart:
                         response, tokens = await request_raw(client, retry.config, retry_key, SUPPORTED_PATHS[path], raw_body or b"", content_type, request.headers)
