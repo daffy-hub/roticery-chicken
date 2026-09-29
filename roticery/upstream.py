@@ -65,6 +65,27 @@ async def request_json(
     return response, extract_usage(data)
 
 
+async def request_raw(
+    client: httpx.AsyncClient,
+    account: AccountConfig,
+    api_key: str,
+    path: str,
+    raw_body: bytes,
+    content_type: str,
+    incoming_headers: httpx.Headers,
+) -> tuple[httpx.Response, int]:
+    url = f"{account.base_url.rstrip('/')}/{path.lstrip('/')}"
+    headers = build_headers(account, api_key, incoming_headers)
+    headers["Content-Type"] = content_type
+    response = await client.post(url, headers=headers, content=raw_body)
+    if response.status_code >= 400:
+        raise UpstreamError(response.status_code, response.content)
+    try:
+        return response, extract_usage(response.json())
+    except json.JSONDecodeError:
+        return response, 0
+
+
 async def stream_response(
     client: httpx.AsyncClient,
     account: AccountConfig,
