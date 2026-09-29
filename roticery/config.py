@@ -25,11 +25,12 @@ class AccountConfig(BaseModel):
     id: str
     provider: str
     base_url: str
-    api_key_env: str
+    api_key_env: str | None = None
     token_threshold: int | None = None
     cooldown_seconds: int | None = None
     enabled: bool = True
     headers: dict[str, str] = Field(default_factory=dict)
+    protocol: Literal["auto", "openai", "anthropic", "both"] = "auto"
 
 
 class ModelConfig(BaseModel):
@@ -51,8 +52,10 @@ class AppConfig(BaseModel):
         return account.cooldown_seconds or self.rotation.default_cooldown_seconds
 
     def api_key_for(self, account: AccountConfig) -> str:
+        if not account.api_key_env:
+            return ""
         value = os.getenv(account.api_key_env)
-        if not value:
+        if value is None:
             raise RuntimeError(
                 f"Missing environment variable {account.api_key_env!r} for account {account.id!r}"
             )
