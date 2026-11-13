@@ -26,6 +26,7 @@ class AccountConfig(BaseModel):
     provider: str
     base_url: str
     api_key_env: str | None = None
+    api_key: str | None = None
     token_threshold: int | None = None
     cooldown_seconds: int | None = None
     enabled: bool = True
@@ -49,9 +50,13 @@ class AppConfig(BaseModel):
         return account.token_threshold or self.rotation.default_token_threshold
 
     def account_cooldown(self, account: AccountConfig) -> int:
-        return account.cooldown_seconds or self.rotation.default_cooldown_seconds
+        if account.cooldown_seconds is not None:
+            return account.cooldown_seconds
+        return self.rotation.default_cooldown_seconds
 
     def api_key_for(self, account: AccountConfig) -> str:
+        if account.api_key:
+            return account.api_key
         if not account.api_key_env:
             return ""
         value = os.getenv(account.api_key_env)

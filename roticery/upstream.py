@@ -47,17 +47,28 @@ def build_headers(
     }
     headers.update(account.headers)
     protocol = protocol or request_protocol("")
+
     if protocol == "anthropic":
-        headers.pop("Authorization", None)
-        if api_key:
-            headers["x-api-key"] = api_key
         headers.setdefault("anthropic-version", "2023-06-01")
+        if account.provider.lower() == "anthropic":
+            headers.pop("Authorization", None)
+            if api_key:
+                headers["x-api-key"] = api_key
+        elif api_key:
+            headers.pop("x-api-key", None)
+            headers["Authorization"] = f"Bearer {api_key}"
+        else:
+            headers.pop("Authorization", None)
+            headers.pop("x-api-key", None)
     elif api_key:
+        headers.pop("x-api-key", None)
+        headers.pop("anthropic-version", None)
         headers["Authorization"] = f"Bearer {api_key}"
     else:
         headers.pop("Authorization", None)
+        headers.pop("x-api-key", None)
+        headers.pop("anthropic-version", None)
     return headers
-
 
 async def request_json(
     client: httpx.AsyncClient,

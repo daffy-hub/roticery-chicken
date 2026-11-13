@@ -92,8 +92,10 @@ def test_openrouter_can_serve_anthropic_protocol(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert route.calls[0].request.headers["authorization"] == "Bearer secret"
+    assert route.calls[0].request.headers["anthropic-version"] == "2023-06-01"
 
 
+@respx.mock
 def test_messages_count_tokens_uses_anthropic_protocol(tmp_path, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_KEY", "secret")
     config = AppConfig(

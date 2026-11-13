@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import httpx
@@ -36,6 +35,7 @@ class AccountRequest(BaseModel):
     provider: str = Field(min_length=1)
     base_url: str = Field(min_length=1)
     api_key_env: str | None = None
+    api_key: str | None = None
     token_threshold: int | None = Field(default=None, ge=1)
     cooldown_seconds: int | None = Field(default=None, ge=0)
     enabled: bool = True
@@ -91,7 +91,7 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
                     "token_threshold": config.account_threshold(account),
                     "cooldown_seconds": config.account_cooldown(account),
                     "enabled": account.enabled,
-                    "has_api_key": bool(account.api_key_env and __import__("os").getenv(account.api_key_env)),
+                    "has_api_key": bool(account.api_key or (account.api_key_env and __import__("os").getenv(account.api_key_env))),
                 }
                 for account in config.accounts
             ]
@@ -233,68 +233,118 @@ def create_app(config: AppConfig, config_path: str | Path | None = None) -> Fast
         raw_body = await request.body() if is_multipart else None
         body = {} if is_multipart else await request.json()
         required_protocol = "anthropic" if path.startswith("/v1/messages") else "openai"
-        selected = router.select(required_protocol)
-        account = selected.config
-
         try:
-            api_key = config.api_key_for(account)
+            selected = router.select(required_protocol)
         except RuntimeError as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         stream = bool(body.get("stream"))
 
         if stream:
-            def usage_callback(tokens: int) -> None:
-                store.record_tokens(account.id, tokens)
-
             async def generator():
-                try:
-                    async for chunk in stream_response(
-                        client,
-                        account,
-                        api_key,
-                        SUPPORTED_PATHS[path],
-                        body,
-                        request.headers,
-                        usage_callback,
-                    ):
-                        yield chunk
-                except UpstreamError as exc:
-                    store.disable(account.id, config.account_cooldown(account))
-                    yield b"data: {\"error\":\"upstream request failed\"}\n\n"
+                account = selected.config
+                attempted: set[str] = set()
+                while True:
+                    attempted.add(account.id)
+                    try:
+                        api_key = config.api_key_for(account)
+                    except RuntimeError:
+                        try:
+                            account = router.select(required_protocol, attempted).config
+                        except RuntimeError:
+                            yield b'data: {"error":"no eligible upstream accounts remain"}\n\n'
+                            return
+                        continue
+
+                    yielded = False
+
+                    def usage_callback(tokens: int, account_id: str = account.id) -> None:
+                        store.record_tokens(account_id, tokens)
+
+                    try:
+                        async for chunk in stream_response(
+                            client,
+                            account,
+                            api_key,
+                            SUPPORTED_PATHS[path],
+                            body,
+                            request.headers,
+                            usage_callback,
+                        ):
+                            yielded = True
+                            yield chunk
+                        return
+                    except UpstreamError as exc:
+                        if exc.status_code not in config.rotation.retry_statuses:
+                            yield b'data: {"error":"upstream request failed"}\n\n'
+                            return
+                        store.disable(account.id, config.account_cooldown(account))
+                        if yielded:
+                            yield b'data: {"error":"upstream request failed"}\n\n'
+                            return
+                        try:
+                            account = router.select(required_protocol, attempted).config
+                        except RuntimeError:
+                            yield b'data: {"error":"no eligible upstream accounts remain"}\n\n'
+                            return
 
             return StreamingResponse(generator(), media_type="text/event-stream")
 
-        try:
-            if is_multipart:
-                response, tokens = await request_raw(client, account, api_key, SUPPORTED_PATHS[path], raw_body or b"", content_type, request.headers)
+        account = selected.config
+        attempted: set[str] = set()
+        last_upstream_error: UpstreamError | None = None
+        last_config_error: RuntimeError | None = None
+
+        while True:
+            attempted.add(account.id)
+            try:
+                api_key = config.api_key_for(account)
+            except RuntimeError as exc:
+                last_config_error = exc
             else:
-                response, tokens = await request_json(client, account, api_key, SUPPORTED_PATHS[path], body, request.headers)
-        except UpstreamError as exc:
-            if exc.status_code in config.rotation.retry_statuses:
-                store.disable(account.id, config.account_cooldown(account))
                 try:
-                    retry = router.select(required_protocol)
-                    retry_key = config.api_key_for(retry.config)
                     if is_multipart:
-                        response, tokens = await request_raw(client, retry.config, retry_key, SUPPORTED_PATHS[path], raw_body or b"", content_type, request.headers)
+                        response, tokens = await request_raw(
+                            client,
+                            account,
+                            api_key,
+                            SUPPORTED_PATHS[path],
+                            raw_body or b"",
+                            content_type,
+                            request.headers,
+                        )
                     else:
-                        response, tokens = await request_json(client, retry.config, retry_key, SUPPORTED_PATHS[path], body, request.headers)
-                    account = retry.config
-                except (UpstreamError, RuntimeError):
-                    return JSONResponse(
-                        status_code=exc.status_code,
-                        content=json.loads(exc.body.decode("utf-8"))
-                        if exc.body
-                        else {"error": "upstream request failed"},
+                        response, tokens = await request_json(
+                            client,
+                            account,
+                            api_key,
+                            SUPPORTED_PATHS[path],
+                            body,
+                            request.headers,
+                        )
+                    break
+                except UpstreamError as exc:
+                    if exc.status_code not in config.rotation.retry_statuses:
+                        return Response(
+                            content=exc.body,
+                            status_code=exc.status_code,
+                            media_type="application/json",
+                        )
+                    store.disable(account.id, config.account_cooldown(account))
+                    last_upstream_error = exc
+
+            try:
+                account = router.select(required_protocol, attempted).config
+            except RuntimeError as exc:
+                if last_upstream_error is not None:
+                    return Response(
+                        content=last_upstream_error.body,
+                        status_code=last_upstream_error.status_code,
+                        media_type="application/json",
                     )
-            else:
-                return JSONResponse(
-                    status_code=exc.status_code,
-                    content=json.loads(exc.body.decode("utf-8"))
-                    if exc.body
-                    else {"error": "upstream request failed"},
-                )
+                if last_config_error is not None:
+                    raise HTTPException(status_code=500, detail=str(last_config_error)) from last_config_error
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
 
         store.record_tokens(account.id, tokens)
         if "application/json" in response.headers.get("content-type", "").lower():

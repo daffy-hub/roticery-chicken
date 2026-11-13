@@ -53,6 +53,7 @@ def test_dashboard_account_management(tmp_path):
             "id": "two",
             "provider": "openrouter",
             "base_url": "https://openrouter.ai/api/v1",
+            "api_key": "top-secret-openrouter-key",
             "api_key_env": "TEST_KEY_2",
             "token_threshold": 1000,
             "cooldown_seconds": 30,
@@ -63,7 +64,9 @@ def test_dashboard_account_management(tmp_path):
         created = client.post("/dashboard/accounts", json=payload)
         assert created.status_code == 200
         assert config_path.exists()
+        assert config.accounts[1].api_key == "top-secret-openrouter-key"
         assert client.get("/dashboard/accounts").json()["accounts"][1]["id"] == "two"
+        assert "api_key" not in client.get("/dashboard/accounts").json()["accounts"][1]
 
         updated = dict(payload)
         updated["provider"] = "updated"

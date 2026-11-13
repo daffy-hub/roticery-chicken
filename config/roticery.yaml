@@ -1,12 +1,12 @@
 server:
   host: 127.0.0.1
-  port: 2500
+  port: 8080
   client_api_key_env: ROTI_API_KEY
 
 database: data/roticery.db
 
 rotation:
-  strategy: sequential
+  strategy: sequential # sequential | round_robin
   default_token_threshold: 50000
   retry_statuses: [401, 403, 408, 409, 429, 500, 502, 503, 504]
   default_cooldown_seconds: 60
@@ -19,6 +19,7 @@ accounts:
     token_threshold: 50000
     cooldown_seconds: 60
     enabled: true
+    protocol: both
 
   - id: openrouter-02
     provider: openrouter
@@ -27,7 +28,25 @@ accounts:
     token_threshold: 50000
     cooldown_seconds: 60
     enabled: true
+    protocol: both
 
+  # Direct Anthropic Messages API.
+  # - id: anthropic-01
+  #   provider: anthropic
+  #   base_url: https://api.anthropic.com
+  #   api_key_env: ANTHROPIC_API_KEY
+  #   protocol: anthropic
+  #   enabled: true
+
+  # Local LM Studio. Use its /v1 compatibility root for both protocols.
+  # - id: lmstudio-01
+  #   provider: lmstudio
+  #   base_url: http://localhost:1234/v1
+  #   api_key_env: null
+  #   protocol: both
+  #   enabled: true
+
+# Optional static model list exposed by GET /v1/models.
 models:
   - id: openai/gpt-4o-mini
     owned_by: openrouter
